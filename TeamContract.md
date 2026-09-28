@@ -15,7 +15,6 @@ This contract sets out shared expectations and commitments for how our team will
 
 ---
 ## Team Norms and Expectations
-
 ### Communication
 
 * Which platform will you use for communication outside of class, when required for work on your course project? (Examples: Text message, Discord, WeChat, etc.)
@@ -25,7 +24,7 @@ Discord
 1 day
 
 * What things should a teammate notify you about? (Examples: if they think they won't be able to meet a deadline, if they have to miss lecture, etc.)
-missing labs, not meeting  deadline  with valid reason
+missing labs, not meeting  deadline  with valid reason, finished your part, code reviewed
 
 * Respectful and inclusive behaviour are necessary for smooth and productive communication. What are some respectful and inclusive behaviours you expect when communicating with each other during lectures, labs, or outside of class? (Examples: Actively listening to each team members ideas, giving everyone a chance to meaningfully contribute, etc.)
 
@@ -38,6 +37,10 @@ active  listening, pay attention
 * Based on your previous teamwork experiences, what other behaviours do you agree upon as a team?
     - some examples of possible additional team norms and expectations are included in the sample team contract in case your team needs some help getting ideas for what else you want to include.
 feel free to speak out ,especially for  anything  inaapropiate or you think is  wrong
+
+2 other people review  code before  commit
+
+
 ---
 
 ## Decision Making
