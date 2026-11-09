@@ -128,7 +128,10 @@ Add Sequence Diagrams
 
 How to Run 
 
-[Instructions for running the program.] 
+Once the program has begun, the user will be given a login screen in order to either sign up or input their login information. Once done, the user will be led to a screen with four options, one for each user story. In the first option, a user can search up a stock and 
+see it's analysis. In the same window they will have an option to add the stock to their watch list. The search bar will remain on the screen if the user wishes to search a different stock.
+The second button will allow the user to search up two different stocks and see their relevant comparison. The third button will allow the user to view their watch list and see the current status of the stocks on the list. The fourth button will take the user to a screen where 
+they can use fake money to simulate buying stocks and view their portfolio performance. On all screens there will be a back button available for if the user wants to go back to the initial screen with the four buttons. 
 
 Notes 
 
