@@ -121,7 +121,8 @@ The program uses the Api to retrieve stock data for the user stories
 Design Diagrams 
 
 Add UML Class Diagram 
-<img width="5178" height="2770" alt="mermaid-diagram (1)" src="https://github.com/user-attachments/assets/36a3a7db-4816-4b90-9c97-3df0cfb5b19a" />
+<img width="5160" height="3732" alt="mermaid-diagram (2)" src="https://github.com/user-attachments/assets/a8ed3c5f-de14-4cc5-83bb-3095ca5d8842" />
+
 Add Sequence Diagrams 
 
  
