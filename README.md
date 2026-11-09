@@ -137,3 +137,6 @@ they can use fake money to simulate buying stocks and view their portfolio perfo
 Notes 
 
 [Any additional project information.] 
+Your program must demonstrate some form of data persistence.
+This could be storing data through some kind of API, writing data to files, or writing data to some kind of database.
+Using the API that is used by the user login system example's DBUserDataAccessObject classLinks to an external site. [updated Nov 7th with version using the correct API url for this term] to store and retrieve a "user" and an associated JSON object could satisfy both of the above requirements for API usage and data persistence. This would be appropriate for projects that rely on being able to share data across multiple users across devices, for example. 
