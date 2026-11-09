@@ -11,3 +11,125 @@ The readme should include information such as:
 By keeping this README up-to-date,
 your team will find it easier to prepare for the final presentation
 at the end of the term.
+
+
+Team Information 
+
+Team Members 
+
+    Mithuran Mathurangan 
+
+    Lee Tak Hei 
+
+ 
+
+Project Description 
+
+Domain 
+
+Stock analysis platform using Apl advantage stock api. 
+
+ 
+
+User Stories 
+
+    Detailed analysis of 1 stock 
+
+    Comparison of 2 stocks 
+
+    Watch list for relevant changes to any given stock 
+
+    Investment portfolio  
+
+ 
+
+Use Cases 
+
+ 
+
+    1.  
+
+    Input a stock and get the relevant analysis as an output.  
+
+    The user will have access to a search bar with a drop-down menu  
+
+    The analysis comes in the form of graphs for historical data and lists for other data.  
+
+    If the user inputs a name that isn’t in the stock list, they get an error 
+
+ 
+
+    2.  
+
+    Input 2 stocks and get the comparison.  
+
+    The comparison shows the respective price history, any correlations if present, and any projected prices.  
+
+ 
+
+    3.  
+
+    The watchlist saves given stocks to files on the user’s account. 
+
+    From there, the user can open the program whenever they want, and the program will pull up any recent changes to the saved stocks in their watchlist.  
+
+    4.  
+
+    A platform for the user to use fake money to simulate the process of buying the stock.  
+
+    The program will increase or decrease their money based off of how their stocks of choice do in real time.   
+
+    The user can also buy/sell their stocks when they choose 
+
+    The user will have access to their portfolio performance  
+
+    If extra time is available, this can be changed to a proper portfolio timeline 
+
+ 
+
+ 
+
+Minimal Viable Product (MVP) 
+
+Add team member who does what user story here
+
+ 
+
+Entities 
+
+    - Stocks 
+
+    - Portfolios 
+
+    - Watchlists 
+
+    - StockData 
+
+    - Transcations 
+    
+
+API Usage 
+
+Alpha Vantage 
+
+Documentation: https://www.alphavantage.co/documentation/ 
+
+The program uses the Api to retrieve stock data for the user stories 
+
+ 
+
+Design Diagrams 
+
+Add UML Class Diagram 
+
+Add Sequence Diagrams 
+
+ 
+
+How to Run 
+
+[Instructions for running the program.] 
+
+Notes 
+
+[Any additional project information.] 
