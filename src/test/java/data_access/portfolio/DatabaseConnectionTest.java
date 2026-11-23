@@ -1,7 +1,10 @@
 package data_access.portfolio;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -13,33 +16,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DatabaseConnectionTest {
-    private static final Path DATABASE_FILE = Path.of("portfolio.db");
+    private Path databaseFile;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        databaseFile = Files.createTempFile("portfolio-test-", ".db");
+        DatabaseConnection.setDatabaseUrl(
+                "jdbc:sqlite:" + databaseFile.toAbsolutePath());
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        DatabaseConnection.resetDatabaseUrl();
+        Files.deleteIfExists(databaseFile);
+    }
 
     @Test
     public void connectsToSQLite() throws Exception {
-        try {
-            try (Connection connection = DatabaseConnection.getConnection();
-                 Statement statement = connection.createStatement();
-                 ResultSet resultSet = statement.executeQuery("SELECT 1")) {
-                assertEquals(1, resultSet.getInt(1));
-            }
-        } finally {
-            Files.deleteIfExists(DATABASE_FILE);
+        try (Connection connection = DatabaseConnection.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT 1")) {
+            assertEquals(1, resultSet.getInt(1));
         }
     }
 
     @Test
     public void foreignKeysAreEnabledForEveryConnection() throws SQLException {
-        try {
-            assertForeignKeysEnabled();
-            assertForeignKeysEnabled();
-        } finally {
-            try {
-                Files.deleteIfExists(DATABASE_FILE);
-            } catch (java.io.IOException exception) {
-                throw new SQLException("Could not clean up test database", exception);
-            }
-        }
+        assertForeignKeysEnabled();
+        assertForeignKeysEnabled();
     }
 
     private void assertForeignKeysEnabled() throws SQLException {

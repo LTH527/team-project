@@ -25,20 +25,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PortfolioDataAccessObjectTest {
     private PortfolioDataAccessObject dao;
+    private Path databaseFile;
 
     @BeforeEach
     void setUp() throws SQLException, IOException {
-        deleteDatabase();
+        databaseFile = Files.createTempFile("portfolio-test-", ".db");
+        DatabaseConnection.setDatabaseUrl(
+                "jdbc:sqlite:" + databaseFile.toAbsolutePath());
         dao = new PortfolioDataAccessObject();
     }
 
     @AfterEach
     void tearDown() throws IOException {
-        deleteDatabase();
-    }
-
-    private void deleteDatabase() throws IOException {
-        Files.deleteIfExists(Path.of("portfolio.db"));
+        DatabaseConnection.resetDatabaseUrl();
+        Files.deleteIfExists(databaseFile);
     }
 
     private void assertMoney(String expected, BigDecimal actual) {

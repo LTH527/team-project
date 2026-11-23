@@ -8,11 +8,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 
 /**
  * Stores the presentation state of the simulated portfolio.
  */
 public final class PortfolioViewModel {
+
+    private final PropertyChangeSupport support =
+            new PropertyChangeSupport(this);
 
     private String message = "";
     private boolean success;
@@ -23,42 +28,46 @@ public final class PortfolioViewModel {
     private List<HoldingOutputData> holdings = new ArrayList<>();
     private List<TransactionOutputData> transactions = new ArrayList<>();
 
-    public String getMessage() {
+    public synchronized String getMessage() {
         return message;
     }
 
-    public boolean isSuccess() {
+    public synchronized boolean isSuccess() {
         return success;
     }
 
-    public BigDecimal getAvailableCash() {
+    public synchronized BigDecimal getAvailableCash() {
         return availableCash;
     }
 
-    public BigDecimal getPortfolioValue() {
+    public synchronized BigDecimal getPortfolioValue() {
         return portfolioValue;
     }
 
-    public BigDecimal getProfitLoss() {
+    public synchronized BigDecimal getProfitLoss() {
         return profitLoss;
     }
 
-    public List<HoldingOutputData> getHoldings() {
-        return Collections.unmodifiableList(holdings);
+    public synchronized List<HoldingOutputData> getHoldings() {
+        return Collections.unmodifiableList(new ArrayList<>(holdings));
     }
 
-    public List<TransactionOutputData> getTransactions() {
-        return Collections.unmodifiableList(transactions);
+    public synchronized List<TransactionOutputData> getTransactions() {
+        return Collections.unmodifiableList(new ArrayList<>(transactions));
     }
 
-    public void setTradeResult(String message, boolean success, BigDecimal availableCash) {
+    public synchronized void setTradeResult(
+            String message,
+            boolean success,
+            BigDecimal availableCash) {
         this.message = Objects.requireNonNull(message, "message must not be null");
         this.success = success;
         this.availableCash = Objects.requireNonNull(
                 availableCash, "availableCash must not be null");
+        firePropertyChanged();
     }
 
-    public void setPortfolioData(
+    public synchronized void setPortfolioData(
             BigDecimal availableCash,
             BigDecimal portfolioValue,
             BigDecimal profitLoss,
@@ -75,13 +84,30 @@ public final class PortfolioViewModel {
             throw new NullPointerException("holdings must not contain null");
         }
         this.holdings = new ArrayList<>(holdings);
+        firePropertyChanged();
     }
 
-    public void setTransactions(List<TransactionOutputData> transactions) {
+    public synchronized void setTransactions(
+            List<TransactionOutputData> transactions) {
         Objects.requireNonNull(transactions, "transactions must not be null");
         if (transactions.stream().anyMatch(Objects::isNull)) {
             throw new NullPointerException("transactions must not contain null");
         }
         this.transactions = new ArrayList<>(transactions);
+        firePropertyChanged();
+    }
+
+    public void addPropertyChangeListener(PropertyChangeListener listener) {
+        support.addPropertyChangeListener(
+                Objects.requireNonNull(listener, "listener must not be null"));
+    }
+
+    public void removePropertyChangeListener(PropertyChangeListener listener) {
+        support.removePropertyChangeListener(
+                Objects.requireNonNull(listener, "listener must not be null"));
+    }
+
+    private void firePropertyChanged() {
+        support.firePropertyChange("state", null, this);
     }
 }

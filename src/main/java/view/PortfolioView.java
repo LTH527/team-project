@@ -66,6 +66,8 @@ public final class PortfolioView extends JPanel {
         add(createMessagePanel(), BorderLayout.SOUTH);
 
         configureTables();
+        viewModel.addPropertyChangeListener(event ->
+                SwingUtilities.invokeLater(this::updateDisplay));
         refreshPortfolio();
     }
 

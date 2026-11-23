@@ -31,7 +31,7 @@ public final class PortfolioInteractor implements PortfolioInputBoundary {
     }
 
     @Override
-    public void execute(PortfolioInputData inputData) {
+    public synchronized void execute(PortfolioInputData inputData) {
         Objects.requireNonNull(inputData, "inputData must not be null");
         switch (inputData.getOperation()) {
             case BUY:

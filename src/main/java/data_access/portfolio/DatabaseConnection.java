@@ -9,20 +9,33 @@ import java.sql.Statement;
  * Opens connections to the portfolio SQLite database.
  */
 public final class DatabaseConnection {
-    private static final String URL = "jdbc:sqlite:portfolio.db";
+    private static final String DEFAULT_URL = "jdbc:sqlite:portfolio.db";
+    private static volatile String databaseUrl = DEFAULT_URL;
 
     private DatabaseConnection() {
     }
 
     public static Connection getConnection() throws SQLException {
-        Connection connection = DriverManager.getConnection(URL);
+        Connection connection = DriverManager.getConnection(databaseUrl);
         try (Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys = ON");
+            statement.execute("PRAGMA busy_timeout = 5000");
         } catch (SQLException exception) {
             connection.close();
             throw exception;
         }
         return connection;
+    }
+
+    static void setDatabaseUrl(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            throw new IllegalArgumentException("databaseUrl must not be empty");
+        }
+        databaseUrl = url;
+    }
+
+    static void resetDatabaseUrl() {
+        databaseUrl = DEFAULT_URL;
     }
 
     public static void initializeDatabase() throws SQLException {
