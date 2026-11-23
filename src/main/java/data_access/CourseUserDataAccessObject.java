@@ -5,6 +5,7 @@ import entity.UserFactory;
 import okhttp3.*;
 import org.json.JSONObject;
 import use_case.login.LoginUserDataAccessInterface;
+import use_case.login.UserDataAccessException;
 import use_case.signup.SignupUserDataAccessInterface;
 
 import java.io.IOException;
@@ -42,7 +43,18 @@ public class CourseUserDataAccessObject
 
         JSONObject result = executeRequest(request);
 
-        return result.getInt("status_code") == 200;
+        int statusCode = result.getInt("status_code");
+
+        if (statusCode == 200) {
+            return true;
+        }
+
+        if (statusCode == 404) {
+            return false;
+        }
+
+        throw new UserDataAccessException(
+                "User API returned unexpected status: " + statusCode);
     }
 
     @Override
@@ -61,7 +73,7 @@ public class CourseUserDataAccessObject
         JSONObject result = executeRequest(request);
 
         if (result.getInt("status_code") != 200) {
-            throw new RuntimeException(
+            throw new UserDataAccessException(
                     result.optString("message", "User not found."));
         }
 
@@ -107,20 +119,23 @@ public class CourseUserDataAccessObject
         return currentUsername;
     }
 
+
     private JSONObject executeRequest(Request request) {
 
-        try (Response response =
-                     client.newCall(request).execute()) {
+        try (Response response = client.newCall(request).execute()) {
 
             if (response.body() == null) {
-                throw new RuntimeException("Empty API response.");
+                throw new UserDataAccessException("Empty API response.");
             }
 
             return new JSONObject(response.body().string());
 
         } catch (IOException e) {
-            throw new RuntimeException(
+            throw new UserDataAccessException(
                     "Could not connect to the User API.", e);
+        } catch (org.json.JSONException e) {
+            throw new UserDataAccessException(
+                    "Invalid response from the User API.", e);
         }
     }
 }
