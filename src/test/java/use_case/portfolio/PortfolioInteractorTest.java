@@ -7,6 +7,11 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -302,5 +307,193 @@ public class PortfolioInteractorTest {
                 presenter.portfolioOutput.getPortfolioValue());
         assertEquals(new BigDecimal("40.00"),
                 presenter.portfolioOutput.getProfitLoss());
+    }
+
+    @Test
+    public void handlesSimultaneousBuyOperationsWithoutLostUpdates() throws Exception {
+        final int numberOfThreads = 10;
+        final int sharesPerBuy = 10;
+
+        RecordingOutputBoundary presenter = new RecordingOutputBoundary();
+        InMemoryPortfolioDataAccess dataAccess = new InMemoryPortfolioDataAccess();
+
+        PortfolioInteractor interactor = new PortfolioInteractor(
+                dataAccess,
+                ticker -> new BigDecimal("100.00"),
+                presenter);
+
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch ready = new CountDownLatch(numberOfThreads);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<?>[] futures = new Future<?>[numberOfThreads];
+
+            for (int i = 0; i < numberOfThreads; i++) {
+                futures[i] = executor.submit(() -> {
+                    ready.countDown();
+
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Timed out waiting to start");
+                    }
+
+                    interactor.execute(new PortfolioInputData(
+                            "user",
+                            "AAPL",
+                            sharesPerBuy,
+                            PortfolioInputData.Operation.BUY));
+                    return null;
+                });
+            }
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS),
+                    "All threads should be ready to start");
+
+            start.countDown();
+
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+
+        Portfolio savedPortfolio = dataAccess.loadPortfolio("user");
+
+        assertNotNull(savedPortfolio);
+        assertEquals(100,
+                savedPortfolio.getHoldings().get("AAPL").getQuantity());
+        assertEquals(new BigDecimal("0.00"),
+                savedPortfolio.getAvailableCash());
+        assertEquals(10,
+                savedPortfolio.getTransactions().size());
+    }
+
+    @Test
+    public void handlesSimultaneousBuysWithoutOverspendingCash() throws Exception {
+        final int numberOfThreads = 10;
+        final int sharesPerBuy = 20;
+
+        RecordingOutputBoundary presenter = new RecordingOutputBoundary();
+        InMemoryPortfolioDataAccess dataAccess = new InMemoryPortfolioDataAccess();
+
+        PortfolioInteractor interactor = new PortfolioInteractor(
+                dataAccess,
+                ticker -> new BigDecimal("100.00"),
+                presenter);
+
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch ready = new CountDownLatch(numberOfThreads);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<?>[] futures = new Future<?>[numberOfThreads];
+
+            for (int i = 0; i < numberOfThreads; i++) {
+                futures[i] = executor.submit(() -> {
+                    ready.countDown();
+
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Timed out waiting to start");
+                    }
+
+                    interactor.execute(new PortfolioInputData(
+                            "user",
+                            "AAPL",
+                            sharesPerBuy,
+                            PortfolioInputData.Operation.BUY));
+                    return null;
+                });
+            }
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS),
+                    "All threads should be ready to start");
+
+            start.countDown();
+
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+
+        Portfolio savedPortfolio = dataAccess.loadPortfolio("user");
+
+        assertNotNull(savedPortfolio);
+        assertEquals(100,
+                savedPortfolio.getHoldings().get("AAPL").getQuantity());
+        assertEquals(new BigDecimal("0.00"),
+                savedPortfolio.getAvailableCash());
+        assertEquals(5,
+                savedPortfolio.getTransactions().size());
+    }
+
+    @Test
+    public void handlesSimultaneousSellsWithoutOversellingShares() throws Exception {
+        final int numberOfThreads = 10;
+        final int sharesPerSell = 20;
+
+        RecordingOutputBoundary presenter = new RecordingOutputBoundary();
+        InMemoryPortfolioDataAccess dataAccess = new InMemoryPortfolioDataAccess();
+
+        PortfolioInteractor interactor = new PortfolioInteractor(
+                dataAccess,
+                ticker -> new BigDecimal("100.00"),
+                presenter);
+
+        interactor.execute(new PortfolioInputData(
+                "user",
+                "AAPL",
+                100,
+                PortfolioInputData.Operation.BUY));
+
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch ready = new CountDownLatch(numberOfThreads);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<?>[] futures = new Future<?>[numberOfThreads];
+
+            for (int i = 0; i < numberOfThreads; i++) {
+                futures[i] = executor.submit(() -> {
+                    ready.countDown();
+
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Timed out waiting to start");
+                    }
+
+                    interactor.execute(new PortfolioInputData(
+                            "user",
+                            "AAPL",
+                            sharesPerSell,
+                            PortfolioInputData.Operation.SELL));
+                    return null;
+                });
+            }
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS),
+                    "All threads should be ready to start");
+
+            start.countDown();
+
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+
+        Portfolio savedPortfolio = dataAccess.loadPortfolio("user");
+
+        assertNotNull(savedPortfolio);
+        assertFalse(savedPortfolio.getHoldings().containsKey("AAPL"));
+        assertEquals(new BigDecimal("10000.00"),
+                savedPortfolio.getAvailableCash());
+        assertEquals(6,
+                savedPortfolio.getTransactions().size());
     }
 }
