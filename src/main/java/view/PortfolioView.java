@@ -26,6 +26,12 @@ public final class PortfolioView extends JPanel {
     private final JLabel profitLossLabel = new JLabel();
     private final JLabel messageLabel = new JLabel(" ");
 
+    private final JButton buyButton = new JButton("Buy");
+    private final JButton sellButton = new JButton("Sell");
+    private final JButton refreshButton = new JButton("Refresh");
+
+    private boolean operationInProgress;
+
     private final JTextField buyTickerField = new JTextField(8);
     private final JTextField buyQuantityField = new JTextField(5);
 
@@ -120,8 +126,6 @@ public final class PortfolioView extends JPanel {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panel.setBorder(BorderFactory.createTitledBorder("Buy Stocks"));
 
-        JButton buyButton = new JButton("Buy");
-
         panel.add(new JLabel("Ticker:"));
         panel.add(buyTickerField);
         panel.add(new JLabel("Quantity:"));
@@ -136,8 +140,6 @@ public final class PortfolioView extends JPanel {
     private JPanel createSellPanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panel.setBorder(BorderFactory.createTitledBorder("Sell Stocks"));
-
-        JButton sellButton = new JButton("Sell");
 
         panel.add(new JLabel("Ticker:"));
         panel.add(sellTickerField);
@@ -160,8 +162,6 @@ public final class PortfolioView extends JPanel {
 
     private JPanel createMessagePanel() {
         JPanel panel = new JPanel(new BorderLayout());
-
-        JButton refreshButton = new JButton("Refresh");
 
         refreshButton.addActionListener(e -> refreshPortfolio());
 
@@ -226,43 +226,105 @@ public final class PortfolioView extends JPanel {
             return;
         }
 
-        try {
-            if (isBuy) {
-                controller.buy(username, ticker, quantity);
-            }
-            else {
-                controller.sell(username, ticker, quantity);
-            }
-
-            String tradeMessage = viewModel.getMessage();
-            boolean tradeSuccess = viewModel.isSuccess();
-
-            controller.viewPortfolio(username);
-            controller.viewTransactionHistory(username);
-            updateDisplay();
-
-            showMessage(tradeMessage, tradeSuccess);
-
-            if (tradeSuccess) {
-                tickerField.setText("");
-                quantityField.setText("");
-            }
+        if (operationInProgress) {
+            return;
         }
-        catch (RuntimeException ex) {
-            showMessage("Unable to complete the trade.", false);
-        }
+
+        setOperationInProgress(true);
+        showMessage("Processing trade...", true);
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Void doInBackground() {
+                if (isBuy) {
+                    controller.buy(username, ticker, quantity);
+                } else {
+                    controller.sell(username, ticker, quantity);
+                }
+
+                controller.viewPortfolio(username);
+                controller.viewTransactionHistory(username);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                setOperationInProgress(false);
+
+                try {
+                    get();
+                    updateDisplay();
+
+                    String tradeMessage = viewModel.getMessage();
+                    boolean tradeSuccess = viewModel.isSuccess();
+
+                    showMessage(tradeMessage, tradeSuccess);
+
+                    if (tradeSuccess) {
+                        tickerField.setText("");
+                        quantityField.setText("");
+                    }
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    showMessage("Trade processing was interrupted.", false);
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    ex.getCause().printStackTrace();
+                    showMessage("Unable to complete the trade.", false);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     private void refreshPortfolio() {
-        try {
-            controller.viewPortfolio(username);
-            controller.viewTransactionHistory(username);
-            updateDisplay();
-            showMessage("Portfolio refreshed.", true);
+        if (operationInProgress) {
+            return;
         }
-        catch (RuntimeException ex) {
-            showMessage("Unable to load portfolio.", false);
-        }
+
+        setOperationInProgress(true);
+        showMessage("Refreshing portfolio...", true);
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Void doInBackground() {
+                controller.viewPortfolio(username);
+                controller.viewTransactionHistory(username);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                setOperationInProgress(false);
+
+                try {
+                    get();
+                    updateDisplay();
+                    showMessage("Portfolio refreshed.", true);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    showMessage("Portfolio refresh was interrupted.", false);
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    ex.getCause().printStackTrace();
+                    showMessage("Unable to load portfolio.", false);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+
+    private void setOperationInProgress(boolean inProgress) {
+        operationInProgress = inProgress;
+        buyButton.setEnabled(!inProgress);
+        sellButton.setEnabled(!inProgress);
+        refreshButton.setEnabled(!inProgress);
+        buyTickerField.setEnabled(!inProgress);
+        buyQuantityField.setEnabled(!inProgress);
+        sellTickerField.setEnabled(!inProgress);
+        sellQuantityField.setEnabled(!inProgress);
     }
 
     private void updateDisplay() {
