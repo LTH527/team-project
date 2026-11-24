@@ -29,7 +29,7 @@ Project Description
 
 Domain 
 
-Stock analysis platform using Apl advantage stock api. 
+Stock analysis platform using Alpaca market data.
 
  
 
@@ -123,85 +123,63 @@ Entities
     - Transcations 
     
 
-API Usage 
+### Stock comparison data
 
-Alpha Vantage 
+The comparison supports U.S. stock symbols available on Alpaca’s IEX feed.
+Click either stock field to browse the directory. Type a ticker such as `NVDA`
+or a company name such as `Nvidia` to narrow the list. Each result shows its
+ticker and name. Click a result or use the arrow keys and Enter to choose it.
+The live comparison loads the directory in the background when the screen opens
+and keeps a local copy for 24 hours. On a later launch, an older saved directory
+can be searched while Alpaca supplies an update. Prices are fetched separately.
+The offline demo offers AAPL, IBM, MSFT, NVDA, and TSLA with synthetic prices
+and trade times. [Alpaca asset directory](https://docs.alpaca.markets/us/reference/get-v2-assets-1)
 
-Documentation: https://www.alphavantage.co/documentation/ 
+#### Running the comparison in IntelliJ
 
-The program uses the Api to retrieve stock data for the user stories 
+1. Open the repository’s `pom.xml` as a Maven project with JDK 11 or later.
+2. Run `stockprototype.StockComparisonApp` with the program argument `--demo`
+   for an offline comparison. Enter NVDA and TSLA and click **Compare**. The
+   default period is **60 trading days (about 3 months)**. The dates above the
+   chart span the first and last daily closes shared by both stocks in that period.
+3. For live mode, generate your own paper-account key ID and secret key.
+   Save them on your computer in a private file outside this repository.
+   Use the two environment variable names below and put each value after its
+   equals sign. [Alpaca setup guide](https://docs.alpaca.markets/us/docs/getting-started-with-alpaca-market-data)
+4. In **Run → Edit Configurations**, select the application, set **Program
+   arguments** to `--live`, and select your private file in **Environment
+   variables**. Click **Apply** and **Run**. The configuration needs only
+   the path to that file. [IntelliJ environment variables](https://www.jetbrains.com/help/idea/program-arguments-and-environment-variables.html)
 
-### Stock API data access
-
-Edwin’s stock comparison screen shows two symbols over their shared trading dates.
-Run `stockprototype.StockComparisonApp --demo` and click **Compare** to try IBM
-and AAPL with synthetic prices. For live data, set `ALPHA_VANTAGE_API_KEY` in a
-local IntelliJ run configuration and run `StockComparisonApp --live`. An existing
-`StockApiDemo` configuration can open the same screen with `--compare`.
-
-Choose the last 20, last 60, or all shared dates. The chart starts both series
-at 100. The results include percentage price changes, correlation between paired
-returns, and a one-interval estimate that extends each stock's historical compound
-growth rate. The panel currently opens in its own window.
-
-The reusable classes are in `src/main/java/stockprototype`:
-
-- `StockDataSource`: interface for retrieving raw daily closing prices.
-- `AlphaVantageClient`: requests and parses Alpha Vantage's `TIME_SERIES_DAILY`
-  response, validates data, and reports request errors.
-- `StockApiDemo`: demonstrates the interface by printing prices; other features
-  should call the data source rather than parse this demo's console output.
-
-Example usage inside a method that handles or declares `IOException`:
-
-```java
-import stockprototype.AlphaVantageClient;
-import stockprototype.StockDataSource;
-
-// Inside your method:
-StockDataSource source =
-        new AlphaVantageClient(System.getenv("ALPHA_VANTAGE_API_KEY"));
-java.util.NavigableMap<java.time.LocalDate, java.math.BigDecimal> prices =
-        source.getDailyClosingPrices("IBM");
+```dotenv
+APCA_API_KEY_ID=
+APCA_API_SECRET_KEY=
 ```
 
-Each call makes one request and returns an immutable map ordered from oldest to
-newest date. Prices are raw closing prices, not split/dividend-adjusted prices or
-real-time quotes. The response does not establish the stock's currency. The
-client requests `outputsize=compact`, which returns up to 100 recent daily
-prices; full daily history requires premium access. See the
-[provider's daily API documentation](https://www.alphavantage.co/documentation/#daily).
+For the console demo, run `stockprototype.StockApiDemo` with `--demo NVDA` or
+`--live NVDA`. Both live entry points use the same environment variables.
 
-This interface is provisional until reconciled with the team's agreed domain
-types. Inject the interface into use cases and construct the concrete client in
-application setup. Network calls must run off Swing's event dispatch thread.
-The Swing panel uses a background worker for price requests. Each live client waits at least 2.5 seconds between requests.
+#### What the prices represent
 
-#### Running the API demo
+Each click on **Compare** fetches the latest available IEX trade for each stock,
+with its timestamp, and compares raw daily closes for shared dates before today
+in New York. When a stock has traded today, its chart line extends to a point
+labeled with today’s date and **Live**. The legend shows the trade price in dollars.
+Click **Compare** again to refresh it. The percentage change, correlation,
+closing-price table, and next-close estimate use completed daily closes. The historical
+request starts in 2016, or at the stock’s first available price if later.
+A stock split can affect comparisons that span the split because the closing
+prices are unadjusted. [Alpaca historical bars](https://docs.alpaca.markets/us/reference/stockbars) · [Latest trades](https://docs.alpaca.markets/us/reference/stocklatesttrades-1)
 
-1. Open this repository's `pom.xml` as a Maven project in IntelliJ and select
-   JDK 11 or later.
-2. Run `stockprototype.StockApiDemo` without program arguments to read the
-   explicitly synthetic `sample-daily.json`. This makes no API request.
-3. For a real request, set `ALPHA_VANTAGE_API_KEY` in the local run configuration's
-   environment variables and set program arguments to `--live IBM` (or another
-   stock symbol). Here, `--live` means a real HTTP request, not real-time quotes.
-4. The demo prints the symbol, daily price count, date range, and latest five
-   closing prices. Never put the key in source code or shared run configurations.
+For the shorter bundled example, choose IBM and AAPL, select
+**20 trading days (about 1 month)**, and click **Compare**.
+IBM rises from 215.35 to 217.86 (+1.17%) and AAPL rises from 110.68 to
+114.98 (+3.89%). AAPL leads by 2.72 percentage points. Open **Closing prices**
+to inspect the individual dates.
 
-#### Validation status
-
-Run `mvn -Dtest=AlphaVantageClientTest,ComparisonInteractorTest test` with
-JDK 11+ for the stock feature's 16 offline tests. They cover API parsing and
-errors, request spacing, shared dates, period selection, price changes,
-correlation, and estimates. The tests use sample data and a fake transport.
-
-On November 16, 2026, the existing IntelliJ console run of `StockApiDemo --live IBM`
-showed a successful live response with 100 daily prices, covering
-June 25 through November 13, 2026, and exit code 0. The API key is not included.
-On November 19, 2026, the comparison window displayed IBM and AAPL over 20 shared dates from live API responses.
-
- 
+The comparison runs in its own Swing window. `ComparisonInteractor` uses the
+`StockDataSource` interface for daily closes and recent trades. The chart,
+tables, and summary share the same comparison result.
 
 Design Diagrams 
 
