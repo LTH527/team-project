@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.concurrent.ExecutionException;
 
 public class LoginView extends JPanel
         implements PropertyChangeListener {
@@ -58,15 +59,51 @@ public class LoginView extends JPanel
         add(errorLabel);
 
         loginButton.addActionListener(event -> {
-            if (loginController != null) {
-                String username =
-                        usernameInputField.getText();
-
-                String password = new String(
-                        passwordInputField.getPassword());
-
-                loginController.execute(username, password);
+            if (loginController == null || !loginButton.isEnabled()) {
+                return;
             }
+
+            String username = usernameInputField.getText();
+            String password = new String(
+                    passwordInputField.getPassword());
+
+            loginButton.setEnabled(false);
+            errorLabel.setForeground(Color.GRAY);
+            errorLabel.setText("Logging in...");
+
+            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+
+                @Override
+                protected Void doInBackground() {
+                    loginController.execute(username, password);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        errorLabel.setForeground(Color.RED);
+                        errorLabel.setText("Login was interrupted.");
+                    }
+                    catch (ExecutionException e) {
+                        errorLabel.setForeground(Color.RED);
+                        errorLabel.setText("An unexpected login error occurred.");
+                    }
+                    catch (java.util.concurrent.CancellationException e) {
+                        errorLabel.setForeground(Color.RED);
+                        errorLabel.setText("Login was cancelled.");
+                    }
+                    finally {
+                        loginButton.setEnabled(true);
+                    }
+                }
+            };
+
+            worker.execute();
         });
     }
 
@@ -78,6 +115,15 @@ public class LoginView extends JPanel
 
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            updateLoginView();
+        }
+        else {
+            SwingUtilities.invokeLater(this::updateLoginView);
+        }
+    }
+
+    private void updateLoginView() {
         LoginState state = loginViewModel.getState();
 
         if (state.getLoginError() != null) {
