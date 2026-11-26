@@ -1,8 +1,5 @@
 package stockprototype.comparison;
 
-import stockprototype.StockDataSource;
-import stockprototype.StockSymbol;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -11,9 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.OptionalDouble;
 import java.util.TreeSet;
+import stockprototype.StockDataSource;
+import stockprototype.StockSymbol;
+import stockprototype.StockTrade;
 
+/** Compares relative performance over the trading dates shared by two price histories. */
 public final class ComparisonInteractor implements CompareStocks {
     private static final MathContext PRECISION = MathContext.DECIMAL128;
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
@@ -36,8 +36,7 @@ public final class ComparisonInteractor implements CompareStocks {
 
         NavigableMap<LocalDate, BigDecimal> firstPrices = dataSource.getDailyClosingPrices(firstSymbol);
         NavigableMap<LocalDate, BigDecimal> secondPrices = dataSource.getDailyClosingPrices(secondSymbol);
-        TreeSet<LocalDate> sharedDates = new TreeSet<>();
-        sharedDates.addAll(firstPrices.keySet());
+        TreeSet<LocalDate> sharedDates = new TreeSet<>(firstPrices.keySet());
         sharedDates.retainAll(secondPrices.keySet());
         if (sharedDates.size() < 2) {
             throw new IllegalArgumentException("These stocks need at least two closing prices on matching dates.");
@@ -58,7 +57,20 @@ public final class ComparisonInteractor implements CompareStocks {
         return new ComparisonResult(firstSymbol, secondSymbol, days,
                 last.firstIndex.subtract(HUNDRED), last.secondIndex.subtract(HUNDRED),
                 project(firstBase, last.firstClose, days.size() - 1),
-                project(secondBase, last.secondClose, days.size() - 1), correlation(days));
+                project(secondBase, last.secondClose, days.size() - 1), correlation(days),
+                latestTrade(firstSymbol), latestTrade(secondSymbol));
+    }
+
+    private StockTrade latestTrade(String symbol) throws IOException {
+        try {
+            return dataSource.getLatestTrade(symbol).orElse(null);
+        } catch (IOException exception) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw exception;
+            }
+            // Latest trades are supplementary. The historical comparison is still usable.
+            return null;
+        }
     }
 
     private static BigDecimal closeOn(NavigableMap<LocalDate, BigDecimal> prices, LocalDate date) {
@@ -90,10 +102,10 @@ public final class ComparisonInteractor implements CompareStocks {
         return current.subtract(previous).divide(previous, PRECISION);
     }
 
-    /** Pearson correlation between paired changes from one shared observation to the next. */
-    private static OptionalDouble correlation(List<ComparisonResult.Day> days) {
+    /** Pearson correlation between paired changes, or NaN if the correlation is undefined. */
+    private static double correlation(List<ComparisonResult.Day> days) {
         if (days.size() < 3) {
-            return OptionalDouble.empty();
+            return Double.NaN;
         }
         BigDecimal sumX = BigDecimal.ZERO;
         BigDecimal sumY = BigDecimal.ZERO;
@@ -115,11 +127,11 @@ public final class ComparisonInteractor implements CompareStocks {
         BigDecimal varianceX = n.multiply(sumXX).subtract(sumX.multiply(sumX));
         BigDecimal varianceY = n.multiply(sumYY).subtract(sumY.multiply(sumY));
         if (varianceX.signum() == 0 || varianceY.signum() == 0) {
-            return OptionalDouble.empty();
+            return Double.NaN;
         }
         BigDecimal covariance = n.multiply(sumXY).subtract(sumX.multiply(sumY));
         BigDecimal denominator = varianceX.multiply(varianceY).sqrt(PRECISION);
         double r = covariance.divide(denominator, PRECISION).doubleValue();
-        return OptionalDouble.of(Math.max(-1.0, Math.min(1.0, r)));
+        return Math.max(-1.0, Math.min(1.0, r));
     }
 }

@@ -43,5 +43,6 @@ build/
 ### Local API credentials ###
 .env
 .env.*
+*.env
 
 portfolio.db

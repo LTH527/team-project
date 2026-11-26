@@ -1,17 +1,24 @@
 package stockprototype.comparison;
 
-import org.junit.jupiter.api.Test;
-import stockprototype.StockDataSource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.TreeMap;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import stockprototype.StockDataSource;
+import stockprototype.StockTrade;
 
 class ComparisonInteractorTest {
     private static final LocalDate START = LocalDate.of(2026, 11, 9);
@@ -38,7 +45,7 @@ class ComparisonInteractorTest {
         assertDecimal("110", result.days.get(1).secondIndex);
         assertDecimal("10", result.firstChange);
         assertDecimal("15", result.secondChange);
-        assertThrows(UnsupportedOperationException.class, () -> result.days.clear());
+        assertThrows(UnsupportedOperationException.class, result.days::clear);
     }
 
     @Test
@@ -50,21 +57,57 @@ class ComparisonInteractorTest {
     }
 
     @Test
+    void historicalResultsSurviveOneFailedTradeAndExcludeTheOtherLatestPrice() throws IOException {
+        StockTrade laterTrade = new StockTrade(new BigDecimal("75"), Instant.parse("2026-11-11T17:05:00Z"));
+        StockDataSource source = new StockDataSource() {
+            @Override
+            public NavigableMap<LocalDate, BigDecimal> getDailyClosingPrices(String symbol) {
+                return prices("10", "11");
+            }
+
+            @Override
+            public Optional<StockTrade> getLatestTrade(String symbol) throws IOException {
+                if ("NVDA".equals(symbol)) {
+                    throw new IOException("Temporary trade service failure");
+                }
+                return Optional.of(laterTrade);
+            }
+        };
+        ComparisonResult result = new ComparisonInteractor(source).compare("NVDA", "TSLA", 0);
+        assertTrue(result.firstTrade().isEmpty());
+        assertEquals(laterTrade, result.secondTrade().orElseThrow());
+        assertEquals(2, result.days.size());
+        assertDecimal("11", result.days.get(1).secondClose);
+        assertDecimal("10", result.secondChange);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1E400", "1E-400"})
+    void rejectsUnrepresentableProjection(String lastClose) {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> compare(prices("1", "2", lastClose), prices("5", "6", "7")));
+        assertTrue(error.getMessage().contains("projection range"));
+    }
+
+    @Test
     void correlationUsesChangesBetweenIdenticalEndpoints() throws IOException {
         // Aligned returns are +10%, -10%, 0% for the first and -10%, +10%, 0% for the second.
         ComparisonResult result = compare(prices("100", "110", null, "99", "99"),
                 prices("200", "180", "500", "198", "198"));
-        assertEquals(-1.0, result.correlation.orElseThrow(), 1e-12);
+        assertEquals(-1.0, result.correlation().orElseThrow(), 1e-12);
     }
 
     @Test
     void handlesEqualCorrelationsAndUndefinedCases() throws IOException {
         ComparisonResult same = compare(prices("1", "2", "3", "5"), prices("2", "4", "6", "10"));
-        assertEquals(1.0, same.correlation.orElseThrow(), 1e-12);
-        assertTrue(compare(prices("63", "63", "63"), prices("3", "4", "6")).correlation.isEmpty());
-        assertTrue(compare(prices("100", "110", "121"), prices("3", "4", "6")).correlation.isEmpty());
+        assertEquals(1.0, same.correlation().orElseThrow(), 1e-12);
+        assertTrue(compare(prices("63", "63", "63"), prices("3", "4", "6")).correlation().isEmpty());
+        NavigableMap<LocalDate, BigDecimal> constantReturns = prices("100", "110", "121");
+        NavigableMap<LocalDate, BigDecimal> varyingReturns = prices("3", "4", "6");
+        assertTrue(compare(constantReturns, varyingReturns).correlation().isEmpty());
+        assertTrue(compare(varyingReturns, constantReturns).correlation().isEmpty());
         ComparisonResult shortPeriod = compare(prices("100", "110"), prices("200", "160"));
-        assertTrue(shortPeriod.correlation.isEmpty());
+        assertTrue(shortPeriod.correlation().isEmpty());
         assertDecimal("121", shortPeriod.firstProjection);
     }
 
