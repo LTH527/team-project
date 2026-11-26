@@ -1,12 +1,28 @@
 package stockprototype.comparison.ui;
 
+import static stockprototype.comparison.ui.ComparisonTheme.BACKGROUND;
+import static stockprototype.comparison.ui.ComparisonTheme.LOSS;
+import static stockprototype.comparison.ui.ComparisonTheme.MUTED;
+import static stockprototype.comparison.ui.ComparisonTheme.TEXT;
+import static stockprototype.comparison.ui.ComparisonTheme.button;
+import static stockprototype.comparison.ui.ComparisonTheme.changeColor;
+import static stockprototype.comparison.ui.ComparisonTheme.field;
+import static stockprototype.comparison.ui.ComparisonTheme.label;
+import static stockprototype.comparison.ui.ComparisonTheme.panel;
+import static stockprototype.comparison.ui.ComparisonTheme.period;
+import static stockprototype.comparison.ui.ComparisonTheme.table;
+import static stockprototype.comparison.ui.ComparisonTheme.tabs;
+
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Component;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.event.HierarchyEvent;
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -15,20 +31,23 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
-import javax.swing.JTextField;
+import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 
-import static stockprototype.comparison.ui.ComparisonTheme.*;
+import stockprototype.StockSymbolDirectory;
 import stockprototype.comparison.CompareStocks;
 import stockprototype.comparison.ComparisonResult;
 
 public final class ComparisonPanel extends JPanel implements ComparisonPresenter.View {
     private static final long serialVersionUID = 1L;
     private enum Window {
-        ALL("All available", 0), TWENTY("Last 20 shared dates", 20), SIXTY("Last 60 shared dates", 60);
+        SIXTY("60 trading days (about 3 months)", 60),
+        TWENTY("20 trading days (about 1 month)", 20),
+        ALL("All available", 0);
 
         private final String label;
         private final int limit;
@@ -44,13 +63,15 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
         }
     }
 
-    private final JTextField firstSymbol = new JTextField("IBM", 8);
-    private final JTextField secondSymbol = new JTextField("AAPL", 8);
+    private final TickerField firstSymbol = new TickerField("IBM", this::requestSymbols);
+    private final TickerField secondSymbol = new TickerField("AAPL", this::requestSymbols);
     private final JComboBox<Window> window = new JComboBox<>(Window.values());
     private final JButton compare = new JButton("Compare");
     private final JLabel status = label("Select two symbols and click Compare.", MUTED);
     private final CardLayout cards = new CardLayout();
     private final JPanel body = panel(cards);
+    private final JLabel firstTrade = label("", TEXT);
+    private final JLabel secondTrade = label("", TEXT);
     private final JLabel period = label("", TEXT);
     private final JLabel performance = label("", TEXT);
     private final JLabel correlation = label("", TEXT);
@@ -59,10 +80,13 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
     private final IndexedPriceChart chart = new IndexedPriceChart();
     private final ComparisonController controller;
     private final boolean live;
+    private final StockSymbolDirectory symbolDirectory;
+    private SwingWorker<TickerSearch, Void> symbolLoader;
 
-    public ComparisonPanel(CompareStocks useCase, boolean live) {
+    public ComparisonPanel(CompareStocks useCase, boolean live, StockSymbolDirectory symbolDirectory) {
         super(new BorderLayout(0, 10));
         this.live = live;
+        this.symbolDirectory = symbolDirectory;
         controller = new ComparisonController(useCase, new ComparisonPresenter(this));
         setBackground(BACKGROUND);
         setForeground(TEXT);
@@ -81,14 +105,58 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
         compare.addActionListener(event -> submit());
         firstSymbol.addActionListener(event -> submit());
         secondSymbol.addActionListener(event -> submit());
+        addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+                requestSymbols();
+            }
+        });
+    }
+
+    private void requestSymbols() {
+        if (symbolLoader != null) {
+            return;
+        }
+        symbolLoader = new SwingWorker<>() {
+            @Override
+            protected TickerSearch doInBackground() throws IOException {
+                return new TickerSearch(symbolDirectory.loadListings(cached -> {
+                    TickerSearch saved = new TickerSearch(cached);
+                    SwingUtilities.invokeLater(() -> showSuggestions(saved));
+                }));
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    showSuggestions(get());
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    catalogUnavailable();
+                } catch (ExecutionException exception) {
+                    catalogUnavailable();
+                }
+            }
+        };
+        symbolLoader.execute();
+    }
+
+    private void showSuggestions(TickerSearch search) {
+        firstSymbol.setSearch(search);
+        secondSymbol.setSearch(search);
+    }
+
+    private void catalogUnavailable() {
+        symbolLoader = null;
+        firstSymbol.catalogUnavailable();
+        secondSymbol.catalogUnavailable();
     }
 
     private JPanel buildForm(boolean live) {
         JPanel form = panel(new BorderLayout(0, 6));
         JLabel title = label("Compare two stocks", TEXT);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
-        JLabel source = label(live ? "Alpha Vantage · Historical daily closes"
-                : "Sample data · Synthetic histories for IBM, AAPL and MSFT", MUTED);
+        JLabel source = label(live ? "Alpaca · IEX exchange data"
+                : "Synthetic demo data · IBM, AAPL, MSFT, NVDA and TSLA", MUTED);
         JPanel heading = panel(null);
         heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
         heading.add(title);
@@ -117,7 +185,12 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
     private JPanel buildResults() {
         JPanel results = panel(new BorderLayout(0, 8));
         JPanel overview = panel(new BorderLayout(0, 6));
-        overview.add(period, BorderLayout.NORTH);
+        JPanel prices = panel(null);
+        prices.setLayout(new BoxLayout(prices, BoxLayout.Y_AXIS));
+        prices.add(label(live ? "Latest IEX trades" : "Latest synthetic trades", MUTED));
+        prices.add(firstTrade);
+        prices.add(secondTrade);
+        overview.add(prices, BorderLayout.NORTH);
         JPanel summaryBlock = panel(new BorderLayout());
         summary.setFillsViewportHeight(true);
         summary.setRowSelectionAllowed(false);
@@ -145,7 +218,11 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
         historyScroll.getViewport().setBackground(BACKGROUND);
         historyScroll.setBackground(BACKGROUND);
         data.addTab("Closing prices", historyScroll);
-        results.add(data, BorderLayout.CENTER);
+        JPanel chartAndHistory = panel(new BorderLayout(0, 4));
+        period.getAccessibleContext().setAccessibleName("Comparison date range");
+        chartAndHistory.add(period, BorderLayout.NORTH);
+        chartAndHistory.add(data, BorderLayout.CENTER);
+        results.add(chartAndHistory, BorderLayout.CENTER);
         results.add(label("Raw closes in each stock’s quote currency. "
                 + "Price changes exclude dividend and split adjustments.", MUTED), BorderLayout.SOUTH);
         return results;
@@ -164,7 +241,7 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
     public void startLoading() {
         setInputsEnabled(false);
         status.setForeground(MUTED);
-        status.setText(live ? "Loading both stocks… Live requests are spaced 2.5 seconds apart."
+        status.setText(live ? "Loading prices from Alpaca…"
                 : "Loading sample prices…");
         cards.show(body, "empty");
     }
@@ -179,10 +256,13 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
 
     @Override
     public void showComparison(ComparisonResult result, String dateRange, String leader,
-                               String returnCorrelation, TableModel summaryData, TableModel historyData) {
+                               String returnCorrelation, String firstTradeText, String secondTradeText,
+                               TableModel summaryData, TableModel historyData) {
         status.setForeground(MUTED);
         status.setText("Comparison of " + result.firstSymbol + " and " + result.secondSymbol);
-        period.setText(dateRange);
+        firstTrade.setText(firstTradeText);
+        secondTrade.setText(secondTradeText);
+        period.setText("Daily closes · " + dateRange);
         performance.setText(leader);
         correlation.setText(returnCorrelation);
         summary.setModel(summaryData);
@@ -199,7 +279,7 @@ public final class ComparisonPanel extends JPanel implements ComparisonPresenter
             }
         });
         history.setModel(historyData);
-        chart.setResult(result);
+        chart.setResult(result, live);
         cards.show(body, "results");
         setInputsEnabled(true);
     }

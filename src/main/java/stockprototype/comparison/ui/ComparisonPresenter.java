@@ -3,18 +3,27 @@ package stockprototype.comparison.ui;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.OptionalDouble;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
+import stockprototype.StockTrade;
 import stockprototype.comparison.ComparisonResult;
 import stockprototype.comparison.ComparisonResult.Day;
 
 final class ComparisonPresenter {
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d, uuuu", Locale.US);
+    private static final DateTimeFormatter TRADE_TIME = DateTimeFormatter
+            .ofPattern("uuuu-MM-dd HH:mm:ss z", Locale.US).withZone(ZoneId.of("America/New_York"));
+
     interface View {
         void startLoading();
         void showError(String message);
         void showComparison(ComparisonResult result, String period, String performance,
-                            String correlation, TableModel summary, TableModel history);
+                            String correlation, String firstTrade, String secondTrade,
+                            TableModel summary, TableModel history);
     }
 
     private final View view;
@@ -34,10 +43,11 @@ final class ComparisonPresenter {
     void present(ComparisonResult result) {
         Day first = result.days.get(0);
         Day last = result.days.get(result.days.size() - 1);
-        String period = first.date + " to " + last.date + "   ·   "
-                + result.days.size() + " shared trading dates";
-        String correlation = result.correlation.isPresent()
-                ? String.format(Locale.ROOT, "Return correlation: %.3f", result.correlation.getAsDouble())
+        String period = DATE.format(first.date) + " to " + DATE.format(last.date) + "   ·   "
+                + result.days.size() + " shared trading days";
+        OptionalDouble returnCorrelation = result.correlation();
+        String correlation = returnCorrelation.isPresent()
+                ? String.format(Locale.ROOT, "Return correlation: %.3f", returnCorrelation.getAsDouble())
                 : "Return correlation unavailable: needs two or more returns that vary for each stock.";
 
         TableModel summary = table(new String[]{"Symbol", "First close", "Last close", "Price change",
@@ -53,9 +63,18 @@ final class ComparisonPresenter {
             Day day = result.days.get(row);
             history[row] = new Object[]{day.date, price(day.firstClose), price(day.secondClose)};
         }
-        view.showComparison(result, period, performance(result), correlation, summary,
+        view.showComparison(result, period, performance(result), correlation,
+                tradeText(result.firstSymbol, result.firstTrade().orElse(null)),
+                tradeText(result.secondSymbol, result.secondTrade().orElse(null)),
+                summary,
                 table(new String[]{"Trading date", result.firstSymbol + " close",
                         result.secondSymbol + " close"}, history));
+    }
+
+    private static String tradeText(String symbol, StockTrade trade) {
+        String details = trade == null ? "Trade unavailable"
+                : "$" + price(trade.price) + "    " + TRADE_TIME.format(trade.time);
+        return symbol + "    " + details;
     }
 
     private static TableModel table(String[] headings, Object[][] rows) {
