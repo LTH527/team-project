@@ -10,7 +10,7 @@ import interface_adapter.stock_analysis.StockSearchController;
 import interface_adapter.stock_analysis.StockSearchPresenter;
 import interface_adapter.stock_analysis.StockSearchViewModel;
 
-import stockprototype.AlphaVantageClient;
+import stockprototype.AlpacaClient;
 
 import use_case.stock_analysis.StockAnalysisDataAccessInterface;
 import use_case.stock_analysis.StockAnalysisInputBoundary;
@@ -33,11 +33,13 @@ public final class StockAnalysisApp {
 
     public static void main(String[] args) {
 
-        String apiKey = System.getenv("ALPHA_VANTAGE_API_KEY");
+        String keyId = System.getenv("APCA_API_KEY_ID");
+        String secretKey = System.getenv("APCA_API_SECRET_KEY");
 
-        if (apiKey == null || apiKey.isBlank()) {
+        if (keyId == null || keyId.isBlank()
+                || secretKey == null || secretKey.isBlank()) {
             System.err.println(
-                    "Please configure ALPHA_VANTAGE_API_KEY.");
+                    "Please configure Alpaca API credentials.");
             return;
         }
 
@@ -51,9 +53,9 @@ public final class StockAnalysisApp {
             StockAnalysisPresenter presenter =
                     new StockAnalysisPresenter(viewModel);
 
-            // Step 3: Connect the Alpha Vantage API.
-            AlphaVantageClient apiClient =
-                    new AlphaVantageClient(apiKey);
+            // Step 3: Connect the Alpaca API.
+            AlpacaClient apiClient =
+                    AlpacaClient.fromEnvironment();
 
             StockAnalysisDataAccessInterface dataAccess =
                     new StockAnalysisDataAccessAdapter(apiClient);
